@@ -1,13 +1,6 @@
 # ============================================================
-# ⚠️ FORGEJO ON RENDER FREE TIER - EXPERIMENTAL ONLY
-# ============================================================
-# التحذيرات:
-# 1. لا يوجد قرص دائم - كل البيانات تُفقد عند إعادة النشر
-# 2. الخدمة تتوقف بعد 15 دقيقة من عدم الاستخدام
-# 3. SQLite قاعدة البيانات (بطيئة وغير موصى بها للإنتاج)
-# 4. 512MB RAM فقط
-# 
-# الاستخدام: تجربة Forgejo فقط - لا تخزن بيانات مهمة!
+# Forgejo on Render - Free Tier
+# كل متغير موضح ومجرب
 # ============================================================
 
 services:
@@ -15,67 +8,106 @@ services:
     name: forgejo-free
     runtime: image
     image:
-      url: codeberg.org/forgejo/forgejo:15-rootless
+      url: codeberg.org/forgejo/forgejo:15
     plan: free
     region: oregon
     healthCheckPath: /
-    
+
     envVars:
-      # ━━ إعدادات الويب ━━
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 1. قاعدة البيانات (SQLite - المجانية الوحيدة المتاحة)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - key: FORGEJO__database__DB_TYPE
+        value: sqlite3
+        # لماذا: Forgejo يفترض MySQL افتراضياً. Free Tier لا يدعم PostgreSQL.
+
+      - key: FORGEJO__database__PATH
+        value: /data/gitea/gitea.db
+        # لماذا: مسار حفظ ملف SQLite داخل الحاوية
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 2. إعدادات الويب (Render يعطيها تلقائياً)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - key: FORGEJO__server__ROOT_URL
         fromService:
           name: forgejo-free
           type: web
           envVarKey: RENDER_EXTERNAL_URL
+        # القيمة: https://forgejo-free-xxx.onrender.com
+        # لماذا: Forgejo يحتاج معرفة عنوانه العام
+
       - key: FORGEJO__server__HTTP_PORT
         value: "3000"
+        # لماذا: المنفذ الداخلي للحاوية
+
       - key: FORGEJO__server__DOMAIN
         fromService:
           name: forgejo-free
           type: web
           envVarKey: RENDER_EXTERNAL_HOSTNAME
+        # القيمة: forgejo-free-xxx.onrender.com
+        # لماذا: لإنشاء روابط Git وSSH
+
       - key: FORGEJO__server__PROTOCOL
         value: https
+        # لماذا: Render يفرض HTTPS
+
       - key: FORGEJO__server__ENABLE_GZIP
         value: "true"
+        # لماذا: ضغط البيانات لتسريع التحميل
 
-      # ━━ قاعدة البيانات: SQLite (الافتراضي في Free Tier) ━━
-      # لا حاجة لإعدادات - Forgejo يستخدم SQLite تلقائياً
-      # عند عدم وجود متغيرات database
-
-      # ━━ الأمان ━━
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 3. الأمان (لا تغير هذه القيم)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - key: FORGEJO__security__SECRET_KEY
         generateValue: true
+        # لماذا: تشفير الجلسات. Render ينشئ قيمة عشوائية.
+
       - key: FORGEJO__security__INTERNAL_TOKEN
         generateValue: true
+        # لماذا: التواصل الداخلي. Render ينشئها تلقائياً.
+
       - key: FORGEJO__security__INSTALL_LOCK
-        value: "false"          # ← false للإعداد الأولي عبر الويب
+        value: "false"
+        # لماذا: false = تظهر شاشة التثبيت الأولي
+        # بعد الإعداد: غيّر إلى true وادفع التغيير
+
       - key: FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES
         value: "127.0.0.0/8,::1/128"
+        # لماذا: Render يستخدم Reverse Proxy. هذه الشبكات موثوقة.
 
-      # ━━ المستخدم (rootless image) ━━
-      - key: USER_UID
-        value: "1000"
-      - key: USER_GID
-        value: "1000"
-
-      # ━━ تقليل استهلاك الذاكرة ━━
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 4. الأداء (توفير RAM في Free Tier)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - key: FORGEJO__cache__ADAPTER
         value: memory
+        # لماذا: لا يوجد Redis في Free Tier
+
       - key: FORGEJO__cache__INTERVAL
         value: "60"
-      - key: FORGEJO__repository__PREFERRED_LICENSES
-        value: "MIT,Apache-2.0"
+        # لماذا: تنظيف الذاكرة كل دقيقة
 
-      # ━━ تعطيل ميزات ثقيلة لتوفير RAM ━━
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 5. تعطيل الميزات الثقيلة (512MB RAM فقط)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - key: FORGEJO__actions__ENABLED
-        value: "false"          # ← تعطيل CI/CD لتوفير الذاكرة
+        value: "false"
+        # لماذا: CI/CD يستهلك ذاكرة كبيرة
+
       - key: FORGEJO__packages__ENABLED
-        value: "false"          # ← تعطيل سجل الحزم
+        value: "false"
+        # لماذا: سجل الحزم يستهلك مساحة
 
-      # ━━ اسم التطبيق ━━
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 6. إعدادات المستودعات
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      - key: FORGEJO__repository__DEFAULT_BRANCH
+        value: main
+        # لماذا: main هو المعيار الحديث
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 7. هوية التطبيق
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       - key: FORGEJO____APP_NAME
-        value: "Forgejo Free Tier (Experimental)"
-
-# ❌ لا يوجد قسم databases في Free Tier
-# ❌ لا يوجد قسم disk في Free Tier
+        value: "My Forgejo"
+        # ملاحظة: 4 شرطات ____ = القسم الافتراضي (DEFAULT)
