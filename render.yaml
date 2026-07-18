@@ -1,0 +1,100 @@
+services:
+  # خدمة Forgejo الرئيسية
+  - type: web
+    name: forgejo
+    runtime: image
+    image:
+      url: codeberg.org/forgejo/forgejo:15-rootless
+    plan: standard        # 2GB RAM, 1 CPU - $25/شهر (الحد الأدنى الموصى به)
+    region: frankfurt     # أو oregon, ohio, virginia, singapore
+    healthCheckPath: /
+    maxShutdownDelaySeconds: 60
+    
+    # القرص الدائم لتخزين البيانات
+    disk:
+      name: forgejo-data
+      mountPath: /var/lib/gitea
+      sizeGB: 20          # ابدأ بـ 20GB وازداد حسب الحاجة ($0.25/GB)
+    
+    # متغيرات البيئة الأساسية
+    envVars:
+      # 🔗 الاتصال بقاعدة البيانات PostgreSQL
+      - key: FORGEJO__database__DB_TYPE
+        value: postgres
+      - key: FORGEJO__database__HOST
+        fromDatabase:
+          name: forgejo-db
+          property: host
+      - key: FORGEJO__database__PORT
+        fromDatabase:
+          name: forgejo-db
+          property: port
+      - key: FORGEJO__database__NAME
+        fromDatabase:
+          name: forgejo-db
+          property: database
+      - key: FORGEJO__database__USER
+        fromDatabase:
+          name: forgejo-db
+          property: user
+      - key: FORGEJO__database__PASSWD
+        fromDatabase:
+          name: forgejo-db
+          property: password
+      
+      # 🌐 إعدادات الويب
+      - key: FORGEJO__server__ROOT_URL
+        fromService:
+          name: forgejo
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: FORGEJO__server__HTTP_PORT
+        value: "3000"
+      - key: FORGEJO__server__DOMAIN
+        fromService:
+          name: forgejo
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      
+      # 🔒 الأمان
+      - key: FORGEJO__security__SECRET_KEY
+        generateValue: true
+      - key: FORGEJO__security__INTERNAL_TOKEN
+        generateValue: true
+      - key: FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES
+        value: "127.0.0.0/8,::1/128"
+      
+      # 👤 معرف المستخدم (لـ rootless image)
+      - key: USER_UID
+        value: "1000"
+      - key: USER_GID
+        value: "1000"
+      
+      # ⚡ تحسينات الأداء
+      - key: FORGEJO__cache__ADAPTER
+        value: memory
+      - key: FORGEJO__cache__INTERVAL
+        value: "60"
+      - key: FORGEJO__repository__PREFERRED_LICENSES
+        value: "MIT,Apache-2.0,GPL-3.0"
+      
+      # 📦 تفعيل سجل الحزم
+      - key: FORGEJO__packages__ENABLED
+        value: "true"
+      
+      # 🏃 تفعيل Actions (CI/CD)
+      - key: FORGEJO__actions__ENABLED
+        value: "true"
+      
+      # 🌍 اللغة الافتراضية
+      - key: FORGEJO____APP_NAME
+        value: "My Forgejo"
+
+# قاعدة بيانات PostgreSQL المُدارة
+databases:
+  - name: forgejo-db
+    databaseName: forgejo
+    user: forgejo
+    plan: basic-256mb     # $7/شهر - ابدأ بهذا
+    region: frankfurt     # نفس منطقة الخدمة
+    ipAllowList: []       # خاص - فقط عبر الشبكة الداخلية
