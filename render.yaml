@@ -6,7 +6,7 @@ services:
     repo: https://github.com/ben-afrinco/Forgejo-render.git
     branch: main
     region: frankfurt
-    healthCheckPath: /api/v1/version
+    healthCheckPath: /install
     
     envVars:
       # ✅ المتغيرات من envVarGroup
