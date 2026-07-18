@@ -1,66 +1,102 @@
-# ============================================================
-# Forgejo on Render - Free Tier (Fixed)
-# ============================================================
-# ⚠️ Free Tier = تجربة فقط. البيانات تُفقد عند إعادة النشر.
-# ============================================================
-
 services:
   - type: web
-    name: forgejo-free
-    runtime: image
-    image:
-      url: codeberg.org/forgejo/forgejo:15    # ← الصورة العادية (بدون -rootless)
+    name: forgejo-server
+    runtime: docker
     plan: free
-    region: oregon
-    healthCheckPath: /
-    
+    repo: https://github.com/YOUR_USERNAME/forgejo-render.git
+    branch: main
+    region: frankfurt  # أو oregon / virginia
+    dockerCommand: /bin/sh -c "
+      echo '=== Starting Forgejo on Render Free Tier ===' &&
+      mkdir -p /data/gitea/conf /data/git /data/lfs &&
+      export FORGEJO__server__ROOT_URL=${RENDER_EXTERNAL_URL:-https://$(echo $RENDER_EXTERNAL_HOSTNAME)} &&
+      export FORGEJO__server__DOMAIN=${RENDER_EXTERNAL_HOSTNAME} &&
+      export FORGEJO__server__SSH_DOMAIN=${RENDER_EXTERNAL_HOSTNAME} &&
+      export FORGEJO__database__DB_TYPE=postgres &&
+      export FORGEJO__database__HOST=${FORGEJO_DB_HOST} &&
+      export FORGEJO__database__NAME=${FORGEJO_DB_NAME} &&
+      export FORGEJO__database__USER=${FORGEJO_DB_USER} &&
+      export FORGEJO__database__PASSWD=${FORGEJO_DB_PASSWORD} &&
+      export FORGEJO__database__SSL_MODE=require &&
+      export FORGEJO__database__MAX_OPEN_CONNS=5 &&
+      export FORGEJO__database__MAX_IDLE_CONNS=2 &&
+      export FORGEJO__server__DISABLE_SSH=true &&
+      export FORGEJO__server__START_SSH_SERVER=false &&
+      export FORGEJO__server__LFS_START_SERVER=false &&
+      export FORGEJO__security__INSTALL_LOCK=true &&
+      export FORGEJO__service__DISABLE_REGISTRATION=true &&
+      export FORGEJO__service__REQUIRE_SIGNIN_VIEW=false &&
+      export FORGEJO__session__PROVIDER=db &&
+      export FORGEJO__cache__ADAPTER=memory &&
+      export FORGEJO__cache__INTERVAL=60 &&
+      export FORGEJO__log__MODE=console &&
+      export FORGEJO__log__LEVEL=Warn &&
+      export FORGEJO__repository__DISABLE_STARS=true &&
+      export FORGEJO__repository__DISABLE_FORKS=true &&
+      export FORGEJO__mirror__ENABLED=false &&
+      export FORGEJO__api__ENABLE_SWAGGER=false &&
+      export FORGEJO__actions__ENABLED=false &&
+      export FORGEJO__packages__ENABLED=false &&
+      export FORGEJO__federation__ENABLED=false &&
+      export FORGEJO__picture__DISABLE_GRAVATAR=true &&
+      export FORGEJO__picture__ENABLE_FEDERATED_AVATAR=false &&
+      export GOMEMLIMIT=400MiB &&
+      echo 'Launching Forgejo...' &&
+      exec /usr/local/bin/forgejo web
+      "
     envVars:
-      # ━━ إعدادات الويب ━━
-      - key: FORGEJO__server__ROOT_URL
-        fromService:
-          name: forgejo-free
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
-      - key: FORGEJO__server__HTTP_PORT
-        value: "3000"
-      - key: FORGEJO__server__DOMAIN
-        fromService:
-          name: forgejo-free
-          type: web
-          envVarKey: RENDER_EXTERNAL_HOSTNAME
-      - key: FORGEJO__server__PROTOCOL
-        value: https
-      - key: FORGEJO__server__ENABLE_GZIP
-        value: "true"
+      - key: USER_UID
+        value: "1000"
+      - key: USER_GID
+        value: "1000"
+      - key: GOMEMLIMIT
+        value: "400MiB"
+      - key: GOGC
+        value: "50"
+      - key: FORGEJO_WORK_DIR
+        value: /data
+      - key: FORGEJO_CUSTOM
+        value: /data/gitea
+    envVarGroups:
+      - forgejo-secrets
 
-      # ━━ قاعدة البيانات: SQLite ━━
-      - key: FORGEJO__database__DB_TYPE
-        value: sqlite3
-      - key: FORGEJO__database__PATH
-        value: /data/gitea/gitea.db
+  - type: cron
+    name: forgejo-keepalive
+    runtime: docker
+    plan: starter  # أو استخدم خدمة خارجية مجانية
+    schedule: "*/10 * * * *"
+    repo: https://github.com/YOUR_USERNAME/forgejo-render.git
+    branch: main
+    dockerCommand: "curl -s -o /dev/null -w '%{http_code}' https://forgejo-server.onrender.com/api/v1/version || echo 'Ping done'"
 
-      # ━━ الأمان ━━
+databases:
+  - name: forgejo-db
+    plan: free
+    databaseName: forgejo
+    user: forgejo
+    region: frankfurt
+    postgresMajorVersion: "16"
+
+envVarGroups:
+  - name: forgejo-secrets
+    envVars:
+      - key: FORGEJO_DB_HOST
+        fromDatabase:
+          name: forgejo-db
+          property: host
+      - key: FORGEJO_DB_NAME
+        fromDatabase:
+          name: forgejo-db
+          property: database
+      - key: FORGEJO_DB_USER
+        fromDatabase:
+          name: forgejo-db
+          property: user
+      - key: FORGEJO_DB_PASSWORD
+        fromDatabase:
+          name: forgejo-db
+          property: password
       - key: FORGEJO__security__SECRET_KEY
         generateValue: true
       - key: FORGEJO__security__INTERNAL_TOKEN
         generateValue: true
-      - key: FORGEJO__security__INSTALL_LOCK
-        value: "false"
-      - key: FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES
-        value: "127.0.0.0/8,::1/128"
-
-      # ━━ تقليل استهلاك الذاكرة ━━
-      - key: FORGEJO__cache__ADAPTER
-        value: memory
-      - key: FORGEJO__cache__INTERVAL
-        value: "60"
-
-      # ━━ تعطيل ميزات ثقيلة ━━
-      - key: FORGEJO__actions__ENABLED
-        value: "false"
-      - key: FORGEJO__packages__ENABLED
-        value: "false"
-
-      # ━━ اسم التطبيق ━━
-      - key: FORGEJO____APP_NAME
-        value: "Forgejo Free Tier"
