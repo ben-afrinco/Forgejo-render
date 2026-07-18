@@ -3,7 +3,7 @@ services:
     name: forgejo-server
     runtime: docker
     plan: free
-    repo: https://github.com/YOUR_USERNAME/forgejo-render.git
+    repo: https://github.com/ben-afrinco/Forgejo-render.git
     branch: main
     region: frankfurt
     healthCheckPath: /api/v1/version
