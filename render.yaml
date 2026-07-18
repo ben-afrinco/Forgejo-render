@@ -5,11 +5,12 @@ services:
     plan: free
     repo: https://github.com/YOUR_USERNAME/forgejo-render.git
     branch: main
-    region: frankfurt  # أو oregon / virginia
+    region: frankfurt
+    healthCheckPath: /api/v1/version
     dockerCommand: /bin/sh -c "
       echo '=== Starting Forgejo on Render Free Tier ===' &&
       mkdir -p /data/gitea/conf /data/git /data/lfs &&
-      export FORGEJO__server__ROOT_URL=${RENDER_EXTERNAL_URL:-https://$(echo $RENDER_EXTERNAL_HOSTNAME)} &&
+      export FORGEJO__server__ROOT_URL=https://${RENDER_EXTERNAL_HOSTNAME} &&
       export FORGEJO__server__DOMAIN=${RENDER_EXTERNAL_HOSTNAME} &&
       export FORGEJO__server__SSH_DOMAIN=${RENDER_EXTERNAL_HOSTNAME} &&
       export FORGEJO__database__DB_TYPE=postgres &&
@@ -41,45 +42,15 @@ services:
       export FORGEJO__picture__DISABLE_GRAVATAR=true &&
       export FORGEJO__picture__ENABLE_FEDERATED_AVATAR=false &&
       export GOMEMLIMIT=400MiB &&
+      export GOGC=50 &&
       echo 'Launching Forgejo...' &&
       exec /usr/local/bin/forgejo web
       "
     envVars:
-      - key: USER_UID
-        value: "1000"
-      - key: USER_GID
-        value: "1000"
-      - key: GOMEMLIMIT
-        value: "400MiB"
-      - key: GOGC
-        value: "50"
-      - key: FORGEJO_WORK_DIR
-        value: /data
-      - key: FORGEJO_CUSTOM
-        value: /data/gitea
-    envVarGroups:
-      - forgejo-secrets
+      # ✅ المتغيرات من envVarGroup
+      - fromGroup: forgejo-common
 
-  - type: cron
-    name: forgejo-keepalive
-    runtime: docker
-    plan: starter  # أو استخدم خدمة خارجية مجانية
-    schedule: "*/10 * * * *"
-    repo: https://github.com/YOUR_USERNAME/forgejo-render.git
-    branch: main
-    dockerCommand: "curl -s -o /dev/null -w '%{http_code}' https://forgejo-server.onrender.com/api/v1/version || echo 'Ping done'"
-
-databases:
-  - name: forgejo-db
-    plan: free
-    databaseName: forgejo
-    user: forgejo
-    region: frankfurt
-    postgresMajorVersion: "16"
-
-envVarGroups:
-  - name: forgejo-secrets
-    envVars:
+      # ✅ متغيرات قاعدة البيانات (من الـ service مباشرة، ليس من الـ group)
       - key: FORGEJO_DB_HOST
         fromDatabase:
           name: forgejo-db
@@ -96,7 +67,40 @@ envVarGroups:
         fromDatabase:
           name: forgejo-db
           property: password
+
+      # ✅ الأسرار
       - key: FORGEJO__security__SECRET_KEY
         generateValue: true
       - key: FORGEJO__security__INTERNAL_TOKEN
         generateValue: true
+
+      # ✅ متغيرات النظام
+      - key: USER_UID
+        value: "1000"
+      - key: USER_GID
+        value: "1000"
+      - key: GOMEMLIMIT
+        value: "400MiB"
+      - key: GOGC
+        value: "50"
+      - key: FORGEJO_WORK_DIR
+        value: /data
+      - key: FORGEJO_CUSTOM
+        value: /data/gitea
+
+databases:
+  - name: forgejo-db
+    plan: free
+    databaseName: forgejo
+    user: forgejo
+    region: frankfurt
+    postgresMajorVersion: "16"
+
+# ✅ envVarGroups على مستوى الجذر فقط
+envVarGroups:
+  - name: forgejo-common
+    envVars:
+      - key: FORGEJO__server__HTTP_PORT
+        value: "3000"
+      - key: FORGEJO__server__PROTOCOL
+        value: http
