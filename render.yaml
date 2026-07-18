@@ -1,33 +1,23 @@
 # ============================================================
-# Forgejo on Render - Blueprint Configuration
-# ============================================================
-# هذا الملف يُنشئ تلقائياً:
-# 1. قاعدة بيانات PostgreSQL مُدارة
-# 2. خدمة ويب Forgejo مع قرص دائم
+# Forgejo on Render - Blueprint Configuration (Fixed)
 # ============================================================
 
 services:
-  # ═══════════════════════════════════════════════════════
-  # خدمة Forgejo الرئيسية
-  # ═══════════════════════════════════════════════════════
   - type: web
     name: forgejo
     runtime: image
     image:
       url: codeberg.org/forgejo/forgejo:15-rootless
-    plan: standard              # 2GB RAM | 1 CPU | $25/شهر
-    region: frankfurt           # أقرب منطقة لك
+    plan: standard
+    region: frankfurt
     healthCheckPath: /api/healthz
-    maxShutdownDelaySeconds: 60
-    numInstances: 1             # لا يمكن التوسع الأفقي مع قرص دائم
+    numInstances: 1
     
-    # ─── القرص الدائم ───
     disk:
       name: forgejo-data
       mountPath: /var/lib/gitea
-      sizeGB: 20                # $0.25/GB | ابدأ بـ 20GB
+      sizeGB: 20
     
-    # ─── متغيرات البيئة ───
     envVars:
       # ━━ قاعدة البيانات ━━
       - key: FORGEJO__database__DB_TYPE
@@ -109,29 +99,14 @@ services:
       - key: FORGEJO__packages__ENABLED
         value: "true"
 
-      # ━━ البريد (اختياري - للإشعارات) ━━
-      # - key: FORGEJO__mailer__ENABLED
-      #   value: "true"
-      # - key: FORGEJO__mailer__HOST
-      #   value: "smtp.gmail.com:587"
-      # - key: FORGEJO__mailer__FROM
-      #   value: "noreply@yourdomain.com"
-      # - key: FORGEJO__mailer__USER
-      #   value: "your-email@gmail.com"
-      # - key: FORGEJO__mailer__PASSWD
-      #   value: "your-app-password"
-
       # ━━ اسم التطبيق ━━
       - key: FORGEJO____APP_NAME
         value: "My Forgejo Server"
 
-# ═══════════════════════════════════════════════════════
-# قاعدة بيانات PostgreSQL المُدارة
-# ═══════════════════════════════════════════════════════
 databases:
   - name: forgejo-db
     databaseName: forgejo
     user: forgejo
-    plan: basic-256mb           # $7/شهر | 256MB RAM
-    region: frankfurt           # نفس منطقة الخدمة!
-    ipAllowList: []             # خاص - فقط عبر الشبكة الداخلية
+    plan: basic-256mb
+    region: frankfurt
+    ipAllowList: []
