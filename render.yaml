@@ -1,6 +1,7 @@
 # ============================================================
-# Forgejo on Render - Free Tier
-# كل متغير موضح ومجرب
+# Forgejo on Render - Free Tier (Fixed)
+# ============================================================
+# ⚠️ Free Tier = تجربة فقط. البيانات تُفقد عند إعادة النشر.
 # ============================================================
 
 services:
@@ -8,106 +9,58 @@ services:
     name: forgejo-free
     runtime: image
     image:
-      url: codeberg.org/forgejo/forgejo:15
+      url: codeberg.org/forgejo/forgejo:15    # ← الصورة العادية (بدون -rootless)
     plan: free
     region: oregon
     healthCheckPath: /
-
+    
     envVars:
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 1. قاعدة البيانات (SQLite - المجانية الوحيدة المتاحة)
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      - key: FORGEJO__database__DB_TYPE
-        value: sqlite3
-        # لماذا: Forgejo يفترض MySQL افتراضياً. Free Tier لا يدعم PostgreSQL.
-
-      - key: FORGEJO__database__PATH
-        value: /data/gitea/gitea.db
-        # لماذا: مسار حفظ ملف SQLite داخل الحاوية
-
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 2. إعدادات الويب (Render يعطيها تلقائياً)
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # ━━ إعدادات الويب ━━
       - key: FORGEJO__server__ROOT_URL
         fromService:
           name: forgejo-free
           type: web
           envVarKey: RENDER_EXTERNAL_URL
-        # القيمة: https://forgejo-free-xxx.onrender.com
-        # لماذا: Forgejo يحتاج معرفة عنوانه العام
-
       - key: FORGEJO__server__HTTP_PORT
         value: "3000"
-        # لماذا: المنفذ الداخلي للحاوية
-
       - key: FORGEJO__server__DOMAIN
         fromService:
           name: forgejo-free
           type: web
           envVarKey: RENDER_EXTERNAL_HOSTNAME
-        # القيمة: forgejo-free-xxx.onrender.com
-        # لماذا: لإنشاء روابط Git وSSH
-
       - key: FORGEJO__server__PROTOCOL
         value: https
-        # لماذا: Render يفرض HTTPS
-
       - key: FORGEJO__server__ENABLE_GZIP
         value: "true"
-        # لماذا: ضغط البيانات لتسريع التحميل
 
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 3. الأمان (لا تغير هذه القيم)
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # ━━ قاعدة البيانات: SQLite ━━
+      - key: FORGEJO__database__DB_TYPE
+        value: sqlite3
+      - key: FORGEJO__database__PATH
+        value: /data/gitea/gitea.db
+
+      # ━━ الأمان ━━
       - key: FORGEJO__security__SECRET_KEY
         generateValue: true
-        # لماذا: تشفير الجلسات. Render ينشئ قيمة عشوائية.
-
       - key: FORGEJO__security__INTERNAL_TOKEN
         generateValue: true
-        # لماذا: التواصل الداخلي. Render ينشئها تلقائياً.
-
       - key: FORGEJO__security__INSTALL_LOCK
         value: "false"
-        # لماذا: false = تظهر شاشة التثبيت الأولي
-        # بعد الإعداد: غيّر إلى true وادفع التغيير
-
       - key: FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES
         value: "127.0.0.0/8,::1/128"
-        # لماذا: Render يستخدم Reverse Proxy. هذه الشبكات موثوقة.
 
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 4. الأداء (توفير RAM في Free Tier)
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # ━━ تقليل استهلاك الذاكرة ━━
       - key: FORGEJO__cache__ADAPTER
         value: memory
-        # لماذا: لا يوجد Redis في Free Tier
-
       - key: FORGEJO__cache__INTERVAL
         value: "60"
-        # لماذا: تنظيف الذاكرة كل دقيقة
 
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 5. تعطيل الميزات الثقيلة (512MB RAM فقط)
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # ━━ تعطيل ميزات ثقيلة ━━
       - key: FORGEJO__actions__ENABLED
         value: "false"
-        # لماذا: CI/CD يستهلك ذاكرة كبيرة
-
       - key: FORGEJO__packages__ENABLED
         value: "false"
-        # لماذا: سجل الحزم يستهلك مساحة
 
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 6. إعدادات المستودعات
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      - key: FORGEJO__repository__DEFAULT_BRANCH
-        value: main
-        # لماذا: main هو المعيار الحديث
-
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 7. هوية التطبيق
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # ━━ اسم التطبيق ━━
       - key: FORGEJO____APP_NAME
-        value: "My Forgejo"
-        # ملاحظة: 4 شرطات ____ = القسم الافتراضي (DEFAULT)
+        value: "Forgejo Free Tier"
