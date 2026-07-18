@@ -1,24 +1,35 @@
+# ============================================================
+# Forgejo on Render - Blueprint Configuration
+# ============================================================
+# هذا الملف يُنشئ تلقائياً:
+# 1. قاعدة بيانات PostgreSQL مُدارة
+# 2. خدمة ويب Forgejo مع قرص دائم
+# ============================================================
+
 services:
+  # ═══════════════════════════════════════════════════════
   # خدمة Forgejo الرئيسية
+  # ═══════════════════════════════════════════════════════
   - type: web
     name: forgejo
     runtime: image
     image:
       url: codeberg.org/forgejo/forgejo:15-rootless
-    plan: standard        # 2GB RAM, 1 CPU - $25/شهر (الحد الأدنى الموصى به)
-    region: frankfurt     # أو oregon, ohio, virginia, singapore
-    healthCheckPath: /
+    plan: standard              # 2GB RAM | 1 CPU | $25/شهر
+    region: frankfurt           # أقرب منطقة لك
+    healthCheckPath: /api/healthz
     maxShutdownDelaySeconds: 60
+    numInstances: 1             # لا يمكن التوسع الأفقي مع قرص دائم
     
-    # القرص الدائم لتخزين البيانات
+    # ─── القرص الدائم ───
     disk:
       name: forgejo-data
       mountPath: /var/lib/gitea
-      sizeGB: 20          # ابدأ بـ 20GB وازداد حسب الحاجة ($0.25/GB)
+      sizeGB: 20                # $0.25/GB | ابدأ بـ 20GB
     
-    # متغيرات البيئة الأساسية
+    # ─── متغيرات البيئة ───
     envVars:
-      # 🔗 الاتصال بقاعدة البيانات PostgreSQL
+      # ━━ قاعدة البيانات ━━
       - key: FORGEJO__database__DB_TYPE
         value: postgres
       - key: FORGEJO__database__HOST
@@ -41,8 +52,10 @@ services:
         fromDatabase:
           name: forgejo-db
           property: password
-      
-      # 🌐 إعدادات الويب
+      - key: FORGEJO__database__SSL_MODE
+        value: require
+
+      # ━━ إعدادات الويب ━━
       - key: FORGEJO__server__ROOT_URL
         fromService:
           name: forgejo
@@ -55,46 +68,70 @@ services:
           name: forgejo
           type: web
           envVarKey: RENDER_EXTERNAL_HOSTNAME
-      
-      # 🔒 الأمان
+      - key: FORGEJO__server__PROTOCOL
+        value: https
+      - key: FORGEJO__server__ENABLE_GZIP
+        value: "true"
+
+      # ━━ الأمان ━━
       - key: FORGEJO__security__SECRET_KEY
         generateValue: true
       - key: FORGEJO__security__INTERNAL_TOKEN
         generateValue: true
       - key: FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES
         value: "127.0.0.0/8,::1/128"
-      
-      # 👤 معرف المستخدم (لـ rootless image)
+      - key: FORGEJO__security__INSTALL_LOCK
+        value: "true"
+
+      # ━━ المستخدم (rootless) ━━
       - key: USER_UID
         value: "1000"
       - key: USER_GID
         value: "1000"
-      
-      # ⚡ تحسينات الأداء
+
+      # ━━ التخزين المؤقت ━━
       - key: FORGEJO__cache__ADAPTER
         value: memory
       - key: FORGEJO__cache__INTERVAL
         value: "60"
+
+      # ━━ المستودعات ━━
+      - key: FORGEJO__repository__DEFAULT_BRANCH
+        value: main
       - key: FORGEJO__repository__PREFERRED_LICENSES
-        value: "MIT,Apache-2.0,GPL-3.0"
-      
-      # 📦 تفعيل سجل الحزم
-      - key: FORGEJO__packages__ENABLED
-        value: "true"
-      
-      # 🏃 تفعيل Actions (CI/CD)
+        value: "MIT,Apache-2.0,GPL-3.0,BSD-3-Clause"
+
+      # ━━ Actions (CI/CD) ━━
       - key: FORGEJO__actions__ENABLED
         value: "true"
-      
-      # 🌍 اللغة الافتراضية
-      - key: FORGEJO____APP_NAME
-        value: "My Forgejo"
 
+      # ━━ سجل الحزم ━━
+      - key: FORGEJO__packages__ENABLED
+        value: "true"
+
+      # ━━ البريد (اختياري - للإشعارات) ━━
+      # - key: FORGEJO__mailer__ENABLED
+      #   value: "true"
+      # - key: FORGEJO__mailer__HOST
+      #   value: "smtp.gmail.com:587"
+      # - key: FORGEJO__mailer__FROM
+      #   value: "noreply@yourdomain.com"
+      # - key: FORGEJO__mailer__USER
+      #   value: "your-email@gmail.com"
+      # - key: FORGEJO__mailer__PASSWD
+      #   value: "your-app-password"
+
+      # ━━ اسم التطبيق ━━
+      - key: FORGEJO____APP_NAME
+        value: "My Forgejo Server"
+
+# ═══════════════════════════════════════════════════════
 # قاعدة بيانات PostgreSQL المُدارة
+# ═══════════════════════════════════════════════════════
 databases:
   - name: forgejo-db
     databaseName: forgejo
     user: forgejo
-    plan: basic-256mb     # $7/شهر - ابدأ بهذا
-    region: frankfurt     # نفس منطقة الخدمة
-    ipAllowList: []       # خاص - فقط عبر الشبكة الداخلية
+    plan: basic-256mb           # $7/شهر | 256MB RAM
+    region: frankfurt           # نفس منطقة الخدمة!
+    ipAllowList: []             # خاص - فقط عبر الشبكة الداخلية
